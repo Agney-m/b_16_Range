@@ -108,4 +108,48 @@ class DynamicProgrammingSolver:
                 score += 5000
         return score
 
+class GreedySolver:
+    """Greedy Algorithm"""
+    def __init__(self, graph):
+        self.graph = graph
+
+    def find_best_move(self):
+        """Find best move using greedy improvement"""
+        best_cell = None
+        best_improvement = -999999
+        
+        for cell in self.graph.all_cells():
+            if cell.value is not None or cell.is_black or cell.is_dot:
+                continue
+            
+            old_state = self.graph.copy_state()
+            current_quality = self._evaluate_state()
+            
+            cell.is_black = True
+            new_quality = self._evaluate_state()
+            improvement = new_quality - current_quality
+            
+            if improvement > best_improvement:
+                best_improvement = improvement
+                best_cell = cell
+            
+            self.graph.restore_state(old_state)
+        
+        return best_cell
+
+    def _evaluate_state(self):
+        score = 0
+        if self.graph.has_adjacent_blacks():
+            score -= 100000
+        if not self.graph.is_white_connected():
+            score -= 100000
+        for clue in self.graph.get_clue_cells():
+            if clue.is_black:
+                score -= 100000
+            visible = self.graph.count_visible_whites(clue)
+            diff = abs(visible - clue.value)
+            score -= diff * 1000
+            if visible == clue.value:
+                score += 5000
+        return score
 

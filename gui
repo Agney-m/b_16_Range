@@ -418,3 +418,115 @@ class RangeGUI:
             f" No adjacent black squares\n"
             f" All white squares connected\n"
             f" All clues satisfied")
+
+def on_key_press(self, event):
+        """Handle keyboard input"""
+        key = event.keysym
+        moved = False
+        
+        if key in ("Up", "w", "W", "k", "K"):
+            if self.cursor_row > 0:
+                self.cursor_row -= 1
+                moved = True
+        elif key in ("Down", "s", "S", "j", "J"):
+            if self.cursor_row < self.graph.size - 1:
+                self.cursor_row += 1
+                moved = True
+        elif key in ("Left", "a", "A", "h", "H"):
+            if self.cursor_col > 0:
+                self.cursor_col -= 1
+                moved = True
+        elif key in ("Right", "d", "D", "l", "L"):
+            if self.cursor_col < self.graph.size - 1:
+                self.cursor_col += 1
+                moved = True
+        
+        if key in ("space", "Return", "KP_Enter"):
+            if self.current_turn == 'player' and not self.game_over:
+                cell = self.graph.grid[self.cursor_row][self.cursor_col]
+                self.make_player_move(cell)
+            else:
+                moved = True
+        
+        if moved:
+            self.draw()
+
+    def new_game(self):
+        """Start new game"""
+        self.graph, self.initial_clues, self.solution = self.generator.generate()
+        
+        # Update solvers
+        self.dc_solver = DivideConquerSolver(self.graph)
+        self.dp_solver = DynamicProgrammingSolver(self.graph)
+        self.greedy_solver = GreedySolver(self.graph)
+        self.backtrack_solver = BacktrackingSolver(self.graph)
+        self.logic = GameLogic(self.graph)
+        
+        # Reset game state
+        self.current_turn = 'player'
+        self.winner = None
+        self.player_score = 0
+        self.ai_score = 0
+        self.player_violations = 0  # Reset violations
+        self.game_over = False
+        self.dc_dp_toggle = False  # Reset toggle
+        self.history = []
+        self.cursor_row = 0
+        self.cursor_col = 0
+        self.draw()
+
+    def reset(self):
+        """Reset current puzzle"""
+        self.graph.reset()
+        self.current_turn = 'player'
+        self.winner = None
+        self.player_score = 0
+        self.ai_score = 0
+        self.player_violations = 0  # Reset violations
+        self.game_over = False
+        self.dc_dp_toggle = False  # Reset toggle
+        self.history = []
+        self.cursor_row = 0
+        self.cursor_col = 0
+        self.draw()
+
+    def undo(self):
+        """Undo last move"""
+        if self.current_turn != 'player' or self.game_over or not self.history:
+            return
+        
+        state = self.history.pop()
+        self.graph.restore_state(state)
+        self.draw()
+
+    def show_rules(self):
+        """Show game rules"""
+        algo_display = {"greedy": "Greedy", "hybrid": "DC+DP", "backtracking": "Backtracking"}
+        algo_name = algo_display.get(self.selected_algorithm, 'Greedy')
+        
+        messagebox.showinfo("Range Puzzle - 2 Player Rules",
+            "OBJECTIVE:\n"
+            "Compete against AI to solve the puzzle correctly!\n\n"
+            "RANGE PUZZLE RULES:\n"
+            "1. Color some squares black\n"
+            "2. NO two black squares can be orthogonally adjacent\n"
+            "3. ALL white squares must be connected (no isolated groups)\n"
+            "4. Each numbered cell must see EXACTLY that many white squares\n"
+            "   (counting itself, in all 4 directions until blocked)\n"
+            "5. Numbered cells can NEVER be black\n\n"
+            "CONTROLS:\n"
+            "• Left-click: Place black square\n"
+            "• Right-click: Place dot marker (reminder: not black)\n"
+            "• Arrow keys: Move cursor\n"
+            "• Space/Enter: Place black at cursor\n\n"
+            "SCORING:\n"
+            "• Each VALID move (follows ALL rules) = +1 point to YOU\n"
+            "• Each INVALID move (breaks ANY rule) = +1 point to AI\n"
+            "• 3 VIOLATIONS = GAME OVER! AI wins immediately!\n"
+            "• When AI completes puzzle correctly = AI WINS!\n"
+            "• Final solved board is displayed when AI wins\n\n"
+            f"AI ALGORITHM:\n"
+            f"Current mode: {algo_name}\n\n"
+            " 3 STRIKES AND YOU'RE OUT!\n"
+            " AI is designed to win most games!\n"
+            "Challenge: Try to score more points than AI!")

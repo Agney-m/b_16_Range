@@ -1,1 +1,11 @@
+class PuzzleGenerator:
+    """Generates valid Range puzzles"""
+    def __init__(self, size=8, difficulty='medium'):
+        self.size = size
+        self.difficulty = difficulty
+        self.difficulty_settings = {
+            'easy': (3, 6, 8),
+            'medium': (6, 10, 10),
+            'hard': (8, 14, 12)
+        }
 

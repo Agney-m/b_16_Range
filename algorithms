@@ -153,3 +153,81 @@ class GreedySolver:
                 score += 5000
         return score
 
+class BacktrackingSolver:
+    """Backtracking Algorithm"""
+    def __init__(self, graph):
+        self.graph = graph
+
+    def find_best_move(self):
+        """Find best move using backtracking search"""
+        # Get list of empty cells
+        empty_cells = [cell for cell in self.graph.all_cells() 
+                      if cell.value is None and not cell.is_black and not cell.is_dot]
+        
+        if not empty_cells:
+            return None
+        
+        # Try to find a move through backtracking
+        best_cell = None
+        min_conflicts = float('inf')
+        
+        for cell in empty_cells:
+            old_state = self.graph.copy_state()
+            cell.is_black = True
+            
+            # Count conflicts
+            conflicts = self._count_conflicts()
+            
+            if conflicts < min_conflicts:
+                min_conflicts = conflicts
+                best_cell = cell
+                
+                # If no conflicts, this is a great move
+                if conflicts == 0:
+                    self.graph.restore_state(old_state)
+                    break
+            
+            self.graph.restore_state(old_state)
+        
+        return best_cell
+
+    def _count_conflicts(self):
+        """Count number of rule violations"""
+        conflicts = 0
+        
+        # Check adjacent blacks
+        if self.graph.has_adjacent_blacks():
+            conflicts += 1
+        
+        # Check white connectivity
+        if not self.graph.is_white_connected():
+            conflicts += 1
+        
+        # Check clue violations
+        for clue in self.graph.get_clue_cells():
+            if clue.is_black:
+                conflicts += 1
+            else:
+                visible = self.graph.count_visible_whites(clue)
+                if visible != clue.value:
+                    conflicts += 1
+        
+        return conflicts
+
+    def _evaluate_state(self):
+        """Evaluate state for backtracking"""
+        score = 0
+        if self.graph.has_adjacent_blacks():
+            score -= 100000
+        if not self.graph.is_white_connected():
+            score -= 100000
+        for clue in self.graph.get_clue_cells():
+            if clue.is_black:
+                score -= 100000
+            visible = self.graph.count_visible_whites(clue)
+            diff = abs(visible - clue.value)
+            score -= diff * 1000
+            if visible == clue.value:
+                score += 5000
+        return score
+

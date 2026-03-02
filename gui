@@ -1,1 +1,57 @@
+import tkinter as tk
+from tkinter import messagebox
+from data_structures_v2 import GridGraph, GameLogic
+from algorithms_v2 import DivideConquerSolver, DynamicProgrammingSolver, GreedySolver, BacktrackingSolver
+from puzzle_generator_v2 import PuzzleGenerator
 
+
+# CONSTANTS
+CELL_SIZE = 60
+FONT_MAIN = ("Arial", 16, "bold")
+FONT_SMALL = ("Arial", 10)
+COLOR_EMPTY = "white"
+COLOR_BLACK = "#000000"
+COLOR_CLUE = "#FFFFCC"
+COLOR_CURSOR = "#FF6B00"
+COLOR_DOT = "#CCCCCC"
+
+
+class RangeGUI:
+    """GUI for 2-player Range Puzzle"""
+    def __init__(self, root, graph, clues, solution, generator):
+        self.root = root
+        self.graph = graph
+        self.initial_clues = clues
+        self.solution = solution  # Correct solution for when AI wins
+        self.generator = generator
+        
+        # Show algorithm selection popup BEFORE setting up UI
+        self.selected_algorithm = self._show_algorithm_selection()
+        
+        # Solvers
+        self.dc_solver = DivideConquerSolver(graph)
+        self.dp_solver = DynamicProgrammingSolver(graph)
+        self.greedy_solver = GreedySolver(graph)
+        self.backtrack_solver = BacktrackingSolver(graph)
+        
+        self.logic = GameLogic(graph)
+        self.generator.difficulty = 'medium'
+        
+        # Game state
+        self.current_turn = 'player'
+        self.winner = None
+        self.player_score = 0
+        self.ai_score = 0
+        self.player_violations = 0  # Track violations - 3 strikes and AI wins!
+        self.game_over = False
+        
+        # DC/DP toggle for hybrid mode
+        self.dc_dp_toggle = False
+        
+        # History for undo
+        self.history = []
+        
+        self._setup_ui()
+        self.cursor_row = 0
+        self.cursor_col = 0
+        self.draw()

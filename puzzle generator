@@ -8,4 +8,76 @@ class PuzzleGenerator:
             'medium': (6, 10, 10),
             'hard': (8, 14, 12)
         }
+def generate(self):
+        max_attempts = 100
+        for attempt in range(max_attempts):
+            graph = GridGraph(self.size)
+            if self._place_black_squares(graph):
+                clues = self._generate_clues(graph)
+                if clues and len(clues) >= 6:
+                    # Save solution
+                    solution = graph.copy_state()
+                    # Create new graph with just clues
+                    new_graph = GridGraph(self.size)
+                    new_graph.set_clues(clues)
+                    return new_graph, clues, solution
+        return self._get_default_puzzle()
+
+    def _place_black_squares(self, graph):
+        min_blacks, max_blacks, _ = self.difficulty_settings[self.difficulty]
+        num_blacks = random.randint(min_blacks, max_blacks)
+        all_cells = list(graph.all_cells())
+        random.shuffle(all_cells)
+        blacks_placed = 0
+        for cell in all_cells:
+            if blacks_placed >= num_blacks:
+                break
+            cell.is_black = True
+            if self._is_valid_placement(graph):
+                blacks_placed += 1
+            else:
+                cell.is_black = False
+        return blacks_placed >= min_blacks
+
+    def _is_valid_placement(self, graph):
+        if graph.has_adjacent_blacks():
+            return False
+        if not graph.is_white_connected():
+            return False
+        return True
+
+    def _generate_clues(self, graph):
+        _, _, num_clues = self.difficulty_settings[self.difficulty]
+        white_cells = [c for c in graph.all_cells() if not c.is_black]
+        if len(white_cells) < num_clues:
+            return None
+        random.shuffle(white_cells)
+        clue_cells = white_cells[:num_clues]
+        clues = {}
+        for cell in clue_cells:
+            visible = graph.count_visible_whites(cell)
+            clues[(cell.row, cell.col)] = visible
+        return clues
+
+    def _get_default_puzzle(self):
+        size = 8
+        clues = {
+            (0, 3): 8, (0, 5): 6, (1, 1): 10, (1, 3): 14,
+            (2, 1): 4, (2, 5): 7, (3, 3): 9, (3, 7): 12,
+            (4, 5): 8, (4, 7): 6, (5, 1): 3, (5, 5): 8,
+        }
+        graph = GridGraph(size)
+        # Generate solution by placing blacks
+        solution_blacks = [
+            (0, 0), (0, 7), (1, 4), (2, 2), (3, 0), (3, 5),
+            (4, 1), (5, 6), (6, 3), (7, 1), (7, 7)
+        ]
+        for r, c in solution_blacks:
+            graph.grid[r][c].is_black = True
+        solution = graph.copy_state()
+        
+        # Create clean graph with clues
+        new_graph = GridGraph(size)
+        new_graph.set_clues(clues)
+        return new_graph, clues, solution
 

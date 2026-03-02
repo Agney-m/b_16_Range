@@ -55,3 +55,101 @@ class RangeGUI:
         self.cursor_row = 0
         self.cursor_col = 0
         self.draw()
+
+
+    def _show_algorithm_selection(self):
+        """Show popup to select AI algorithm"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Select AI Algorithm")
+        dialog.geometry("400x250")
+        dialog.resizable(False, False)
+        
+        # Make dialog modal
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (250 // 2)
+        dialog.geometry(f"400x250+{x}+{y}")
+        
+        selected = tk.StringVar(value="greedy")
+        
+        # Title
+        tk.Label(dialog, text="Select AI Algorithm", 
+                font=("Arial", 14, "bold")).pack(pady=10)
+        
+        tk.Label(dialog, text="Choose the AI algorithm to play against:", 
+                font=("Arial", 10)).pack(pady=5)
+        
+        # Algorithm options
+        algorithms_frame = tk.Frame(dialog)
+        algorithms_frame.pack(pady=10)
+        
+        tk.Radiobutton(algorithms_frame, text="1. Greedy (Fast, less optimal)", 
+                      variable=selected, value="greedy",
+                      font=("Arial", 10)).pack(anchor="w", pady=5)
+        
+        tk.Radiobutton(algorithms_frame, text="2. Divide & Conquer + Dynamic Programming", 
+                      variable=selected, value="hybrid",
+                      font=("Arial", 10)).pack(anchor="w", pady=5)
+        
+        tk.Radiobutton(algorithms_frame, text="3. Backtracking (Slow, most optimal)", 
+                      variable=selected, value="backtracking",
+                      font=("Arial", 10)).pack(anchor="w", pady=5)
+        
+        # Confirm button
+        tk.Button(dialog, text="Start Game", command=dialog.destroy,
+                 bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(pady=10)
+        
+        # Wait for selection
+        self.root.wait_window(dialog)
+        
+        return selected.get()
+
+    def _setup_ui(self):
+        """Setup user interface"""
+        top_frame = tk.Frame(self.root)
+        top_frame.pack(pady=5)
+        
+        btn_frame = tk.Frame(top_frame)
+        btn_frame.pack(side="left", padx=10)
+        
+        tk.Button(btn_frame, text="New Game", command=self.new_game,
+                 bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Restart", command=self.reset).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Undo", command=self.undo).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Rules", command=self.show_rules,
+                 bg="#2196F3", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
+        
+        self.status_label = tk.Label(self.root,
+                                    text="YOUR TURN - Click to place black square",
+                                    font=("Arial", 10), wraplength=800)
+        self.status_label.pack(pady=5)
+        
+        self.score_label = tk.Label(self.root,
+                                    text=f"Score: YOU={self.player_score} | AI={self.ai_score}",
+                                    font=("Arial", 12, "bold"), fg="#2196F3")
+        self.score_label.pack(pady=2)
+        
+        # AI Algorithm display
+        algo_display = {"greedy": "Greedy", "hybrid": "DC+DP", "backtracking": "Backtracking"}
+        algo_text = f"AI Mode: {algo_display.get(self.selected_algorithm, 'Greedy')}"
+        self.algo_label = tk.Label(self.root, text=algo_text,
+                                   font=("Arial", 10, "italic"), fg="#666666")
+        self.algo_label.pack(pady=2)
+        
+        canvas_size = self.graph.size * CELL_SIZE
+        self.canvas = tk.Canvas(self.root, width=canvas_size, height=canvas_size,
+                               bg="white", highlightthickness=2, highlightbackground="#333333")
+        self.canvas.pack(pady=10)
+        self.canvas.focus_set()
+        
+        # Mouse bindings
+        self.canvas.bind("<Button-1>", self.on_left_click)
+        self.canvas.bind("<Button-3>", self.on_right_click)
+        
+        # Keyboard bindings
+        self.canvas.bind("<KeyPress>", self.on_key_press)
+        self.root.bind("<KeyPress>", self.on_key_press)

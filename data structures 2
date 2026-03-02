@@ -1,0 +1,185 @@
+"""
+
+DATA STRUCTURES FOR RANGE PUZZLE V2
+
+Contains core data structures:
+- Cell: Represents a single cell in the grid
+- GridGraph: Graph-based grid representation
+- GameLogic: Game validation and logic
+"""
+
+from collections import deque
+
+
+class Cell:
+    """Represents a single cell in the grid"""
+    def __init__(self, row, col, value=None):
+        self.row = row
+        self.col = col
+        self.value = value  # Clue number (how many white squares visible)
+        self.is_black = False
+        self.is_dot = False
+
+    def copy(self):
+        c = Cell(self.row, self.col, self.value)
+        c.is_black = self.is_black
+        c.is_dot = self.is_dot
+        return c
+
+
+class GridGraph:
+    """Graph-based grid representation for Range Puzzle"""
+    def __init__(self, size):
+        self.size = size
+        self.grid = []
+        self._create_grid()
+
+    def _create_grid(self):
+        for r in range(self.size):
+            row = []
+            for c in range(self.size):
+                row.append(Cell(r, c))
+            self.grid.append(row)
+
+    def set_clues(self, clues):
+        for (r, c), v in clues.items():
+            self.grid[r][c].value = v
+
+    def neighbors(self, cell):
+        """Get 4-directional neighbors (graph adjacency)"""
+        dirs = [(-1,0),(1,0),(0,-1),(0,1)]
+        result = []
+        for dr, dc in dirs:
+            nr = cell.row + dr
+            nc = cell.col + dc
+            if 0 <= nr < self.size and 0 <= nc < self.size:
+                result.append(self.grid[nr][nc])
+        return result
+
+    def all_cells(self):
+        for row in self.grid:
+            for cell in row:
+                yield cell
+
+    def get_cell(self, row, col):
+        if 0 <= row < self.size and 0 <= col < self.size:
+            return self.grid[row][col]
+        return None
+
+    def count_visible_whites(self, cell):
+        """Count white squares visible from this cell in all 4 directions"""
+        if cell.is_black:
+            return 0
+        count = 1  # Count the cell itself
+        directions = [(-1,0), (1,0), (0,-1), (0,1)]
+        for dr, dc in directions:
+            r, c = cell.row + dr, cell.col + dc
+            while 0 <= r < self.size and 0 <= c < self.size:
+                neighbor = self.grid[r][c]
+                if neighbor.is_black:
+                    break
+                count += 1
+                r += dr
+                c += dc
+        return count
+
+    def get_white_cells(self):
+        return [cell for cell in self.all_cells() if not cell.is_black]
+
+    def is_white_connected(self):
+        """BFS to check if all white cells form a connected component"""
+        white_cells = self.get_white_cells()
+        if not white_cells:
+            return True
+        start = white_cells[0]
+        queue = deque([start])
+        visited = {start}
+        while queue:
+            current = queue.popleft()
+            for neighbor in self.neighbors(current):
+                if not neighbor.is_black and neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        return len(visited) == len(white_cells)
+
+    def has_adjacent_blacks(self):
+        """Check if any two black squares are orthogonally adjacent"""
+        for cell in self.all_cells():
+            if cell.is_black:
+                for neighbor in self.neighbors(cell):
+                    if neighbor.is_black:
+                        return True
+        return False
+
+    def get_clue_cells(self):
+        return [cell for cell in self.all_cells() if cell.value is not None]
+
+    def reset(self):
+        for cell in self.all_cells():
+            if cell.value is None:  # Don't reset clues
+                cell.is_black = False
+                cell.is_dot = False
+
+    def copy_state(self):
+        """Save current state"""
+        state = {}
+        for cell in self.all_cells():
+            state[(cell.row, cell.col)] = (cell.is_black, cell.is_dot)
+        return state
+
+    def restore_state(self, state):
+        """Restore saved state"""
+        for cell in self.all_cells():
+            if (cell.row, cell.col) in state:
+                cell.is_black, cell.is_dot = state[(cell.row, cell.col)]
+
+
+class GameLogic:
+    """Game logic and validation using graph algorithms"""
+    def __init__(self, graph):
+        self.graph = graph
+
+    def is_valid_state(self):
+        """Check if current state is valid (no violations)"""
+        # Rule 1: No numbered squares are black
+        for cell in self.graph.get_clue_cells():
+            if cell.is_black:
+                return False
+        # Rule 2: No adjacent black squares
+        if self.graph.has_adjacent_blacks():
+            return False
+        # Rule 3: All white squares connected
+        if not self.graph.is_white_connected():
+            return False
+        return True
+
+    def is_game_complete(self):
+        """Check if game is complete and correct"""
+        if not self.is_valid_state():
+            return False
+        # Rule 4: All clues must be satisfied
+        return self.validate_all_clues()
+
+    def validate_all_clues(self):
+        """Check if all clues are satisfied"""
+        for cell in self.graph.get_clue_cells():
+            visible = self.graph.count_visible_whites(cell)
+            if visible != cell.value:
+                return False
+        return True
+
+    def get_violations(self):
+        violations = []
+        for cell in self.graph.get_clue_cells():
+            if cell.is_black:
+                violations.append(f" Clue cell ({cell.row},{cell.col}) is BLACK!")
+        if self.graph.has_adjacent_blacks():
+            violations.append(" Adjacent black squares found")
+        if not self.graph.is_white_connected():
+            violations.append(" White cells are NOT all connected")
+        for cell in self.graph.get_clue_cells():
+            if not cell.is_black:
+                visible = self.graph.count_visible_whites(cell)
+                if visible != cell.value:
+                    violations.append(f" Cell ({cell.row},{cell.col}) sees {visible}, needs {cell.value}")
+        return violations

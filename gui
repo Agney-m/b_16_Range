@@ -153,3 +153,268 @@ class RangeGUI:
         # Keyboard bindings
         self.canvas.bind("<KeyPress>", self.on_key_press)
         self.root.bind("<KeyPress>", self.on_key_press)
+
+
+ def draw(self):
+        """Draw the game board"""
+        self.canvas.delete("all")
+        for cell in self.graph.all_cells():
+            self._draw_cell(cell)
+        
+        # Draw grid lines
+        for i in range(self.graph.size + 1):
+            self.canvas.create_line(i * CELL_SIZE, 0, i * CELL_SIZE,
+                                   self.graph.size * CELL_SIZE, fill="#666666", width=2)
+            self.canvas.create_line(0, i * CELL_SIZE, self.graph.size * CELL_SIZE,
+                                   i * CELL_SIZE, fill="#666666", width=2)
+        
+        self._draw_cursor()
+        self._update_status()
+
+    def _draw_cell(self, cell):
+        """Draw a single cell"""
+        x1 = cell.col * CELL_SIZE
+        y1 = cell.row * CELL_SIZE
+        x2 = x1 + CELL_SIZE
+        y2 = y1 + CELL_SIZE
+        
+        if cell.is_black:
+            bg_color = COLOR_BLACK
+            text_color = "white"
+        elif cell.value is not None:
+            bg_color = COLOR_CLUE
+            text_color = "black"
+        else:
+            bg_color = COLOR_EMPTY
+            text_color = "black"
+        
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill=bg_color, outline="", width=0)
+        
+        if cell.value is not None:
+            self.canvas.create_text(x1 + CELL_SIZE // 2, y1 + CELL_SIZE // 2,
+                                   text=str(cell.value), font=FONT_MAIN, fill=text_color)
+        
+        # Draw dot if marked
+        if cell.is_dot and not cell.is_black:
+            self.canvas.create_oval(x1 + CELL_SIZE // 2 - 6, y1 + CELL_SIZE // 2 - 6,
+                                   x1 + CELL_SIZE // 2 + 6, y1 + CELL_SIZE // 2 + 6,
+                                   fill=COLOR_DOT, outline="")
+
+    def _draw_cursor(self):
+        """Draw cursor"""
+        x1 = self.cursor_col * CELL_SIZE + 2
+        y1 = self.cursor_row * CELL_SIZE + 2
+        x2 = x1 + CELL_SIZE - 4
+        y2 = y1 + CELL_SIZE - 4
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline=COLOR_CURSOR, width=3)
+
+    def _update_status(self):
+        """Update status display"""
+        violations_text = f" | Violations: {self.player_violations}/3" if self.player_violations > 0 else ""
+        self.score_label.config(text=f"Score: YOU={self.player_score} | AI={self.ai_score}{violations_text}")
+        
+        if self.game_over:
+            if self.winner == 'ai':
+                self.status_label.config(
+                    text=f" AI WINS! AI solved the puzzle! Final: You={self.player_score}, AI={self.ai_score}",
+                    fg="red", font=("Arial", 11, "bold"))
+            elif self.winner == 'player':
+                self.status_label.config(
+                    text=f" AMAZING! YOU WIN! You beat the AI! Final: You={self.player_score}, AI={self.ai_score}",
+                    fg="green", font=("Arial", 11, "bold"))
+        elif self.current_turn == 'player':
+            violations = self.logic.get_violations()
+            warning = f"  {3 - self.player_violations} strikes left!" if self.player_violations > 0 else ""
+            if violations:
+                self.status_label.config(
+                    text=f"YOUR TURN - Click to place black | Score: You={self.player_score}, AI={self.ai_score}{warning} (⚠ VIOLATIONS = Point to AI)",
+                    fg="orange")
+            else:
+                self.status_label.config(
+                    text=f"YOUR TURN - Click to place black | Score: You={self.player_score}, AI={self.ai_score}{warning}",
+                    fg="black")
+        else:
+            algo_display = {"greedy": "Greedy", "hybrid": "DC+DP", "backtracking": "Backtracking"}
+            algo_name = algo_display.get(self.selected_algorithm, 'Greedy')
+            self.status_label.config(
+                text=f"AI TURN - Using {algo_name}... | Score: You={self.player_score}, AI={self.ai_score}",
+                fg="blue")
+
+    def on_left_click(self, event):
+        """Left click - place black square"""
+        if self.current_turn != 'player' or self.game_over:
+            return
+        
+        row = event.y // CELL_SIZE
+        col = event.x // CELL_SIZE
+        if not (0 <= row < self.graph.size and 0 <= col < self.graph.size):
+            return
+        
+        cell = self.graph.grid[row][col]
+        self.cursor_row = row
+        self.cursor_col = col
+        self.make_player_move(cell)
+
+    def on_right_click(self, event):
+        """Right click - place dot marker"""
+        if self.current_turn != 'player' or self.game_over:
+            return
+        
+        row = event.y // CELL_SIZE
+        col = event.x // CELL_SIZE
+        if not (0 <= row < self.graph.size and 0 <= col < self.graph.size):
+            return
+        
+        cell = self.graph.grid[row][col]
+        if cell.value is not None or cell.is_black:
+            return
+        
+        cell.is_dot = not cell.is_dot
+        self.draw()
+
+    def make_player_move(self, cell):
+        """Player makes a move"""
+        if cell.value is not None or cell.is_black:
+            return
+        
+        # Save state for undo
+        self.history.append(self.graph.copy_state())
+        
+        # Make move
+        cell.is_black = True
+        cell.is_dot = False
+        
+        # Check if move is valid
+        is_valid = self.logic.is_valid_state()
+        
+        if is_valid:
+            self.player_score += 1
+            self.draw()
+        else:
+            # INVALID MOVE - Point goes to AI and count violation!
+            self.ai_score += 1
+            self.player_violations += 1
+            violations = self.logic.get_violations()
+            self.draw()
+            
+            # Check if player hit 3 violations
+            if self.player_violations >= 3:
+                messagebox.showerror("GAME OVER!",
+                    f" 3 STRIKES - YOU'RE OUT!\n\n"
+                    f"You violated the rules {self.player_violations} times.\n\n"
+                    f"Violations:\n" + "\n".join(violations[:3]) + "\n\n"
+                    f" AI WINS!\n\n"
+                    f"Final Score: You={self.player_score} | AI={self.ai_score}\n\n"
+                    f"The AI will now show you the correct solution...")
+                self.ai_wins_by_violations()
+                return
+            else:
+                strikes_left = 3 - self.player_violations
+                messagebox.showwarning("Invalid Move!",
+                    f" RULE VIOLATION! (Strike {self.player_violations}/3)\n\n"
+                    f"Your move broke the rules:\n" + "\n".join(violations[:3]) + "\n\n"
+                    f" Point goes to AI!\n"
+                    f" {strikes_left} strike{'s' if strikes_left != 1 else ''} remaining!\n\n"
+                    f"Score: You={self.player_score} | AI={self.ai_score}")
+        
+        # Switch to AI
+        self.current_turn = 'ai'
+        self.draw()
+        self.root.after(800, self.make_ai_move)
+
+    def make_ai_move(self):
+        """AI makes a move"""
+        if self.game_over:
+            return
+        
+        # Select solver based on selected algorithm (NO ROTATION)
+        if self.selected_algorithm == "greedy":
+            solver = self.greedy_solver
+            algo_name = "Greedy"
+        elif self.selected_algorithm == "hybrid":
+            # Alternate between DC and DP for hybrid mode
+            if self.dc_dp_toggle:
+                solver = self.dc_solver
+                algo_name = "Divide & Conquer"
+            else:
+                solver = self.dp_solver
+                algo_name = "Dynamic Programming"
+            # Toggle for next turn
+            self.dc_dp_toggle = not self.dc_dp_toggle
+        elif self.selected_algorithm == "backtracking":
+            solver = self.backtrack_solver
+            algo_name = "Backtracking"
+        else:
+            # Default to greedy
+            solver = self.greedy_solver
+            algo_name = "Greedy"
+        
+        # Find best move
+        best_cell = solver.find_best_move()
+        
+        if best_cell:
+            best_cell.is_black = True
+            
+            # Check if move is valid
+            is_valid = self.logic.is_valid_state()
+            
+            if is_valid:
+                self.ai_score += 1
+        
+        # Check if game is complete
+        if self.logic.is_game_complete():
+            self.ai_wins()
+            return
+        
+        # Switch back to player (NO ALGORITHM ROTATION)
+        self.current_turn = 'player'
+        self.draw()
+
+    def ai_wins(self):
+        """AI wins - show completed puzzle"""
+        self.game_over = True
+        self.winner = 'ai'
+        
+        # Show the correct solution
+        self.graph.restore_state(self.solution)
+        self.draw()
+        
+        algo_display = {"greedy": "Greedy", "hybrid": "DC+DP", "backtracking": "Backtracking"}
+        algo_name = algo_display.get(self.selected_algorithm, 'Greedy')
+        
+        messagebox.showinfo("AI WINS!",
+            f" AI WINS! \n\n"
+            f"AI successfully solved the puzzle!\n\n"
+            f"Final Scores:\n"
+            f"Your score: {self.player_score}\n"
+            f"AI score: {self.ai_score}\n\n"
+            f"The complete solution is now displayed on the board.\n\n"
+            f"All Range Puzzle rules satisfied:\n"
+            f" No adjacent black squares\n"
+            f" All white squares connected\n"
+            f" All clues satisfied\n\n"
+            f"AI used: {algo_name} algorithm")
+
+    def ai_wins_by_violations(self):
+        """AI wins because player got 3 violations - show completed puzzle"""
+        self.game_over = True
+        self.winner = 'ai'
+    
+        # Show the correct solution
+        self.graph.restore_state(self.solution)
+        self.draw()
+        
+        # Show final message with solution
+        messagebox.showinfo("AI WINS - Solution Displayed!",
+            f" AI WINS BY 3 STRIKES! \n\n"
+            f"You violated the rules 3 times.\n\n"
+            f"Final Scores:\n"
+            f"Your score: {self.player_score}\n"
+            f"AI score: {self.ai_score}\n"
+            f"Your violations: {self.player_violations}\n\n"
+            f"The CORRECT SOLUTION is now displayed on the board.\n\n"
+            f"Study it to understand the rules better!\n\n"
+            f"All Range Puzzle rules satisfied:\n"
+            f" No adjacent black squares\n"
+            f" All white squares connected\n"
+            f" All clues satisfied")
